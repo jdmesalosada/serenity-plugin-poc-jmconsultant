@@ -15,66 +15,71 @@ import java.nio.file.Paths
 
 import com.influxdb.client.write.Point
 
+import java.time.Instant
+
 class SendResultsPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-
-        project.task('julianas') {
+        project.task('sendResults') {
             doLast {
-                def database = "serenityResults"
-                //Influx 2.0
-                /*InfluxDBClient influxDBClient = InfluxDBClientFactory
-                        .create("http://localhost:8086", token, org, bucket)*/
-
-                InfluxDBClient influxDBClient = InfluxDBClientFactory
-                        .createV1("http://localhost:8086", "root", "root".toCharArray(), database, null)
-
 
                 Path outputDir = Paths.get(project.serenity.outputDirectory)
                 if (!outputDir.isAbsolute()) {
                     outputDir = project.projectDir.toPath().resolve(outputDir)
                 }
-                println "output dir " + outputDir
+
+                print "output Dir: ${outputDir}"
 
                 OutcomeFormat format = OutcomeFormat.JSON
+
                 File file = new File(outputDir.toString())
 
-                TestOutcomes outcomes = TestOutcomeLoader.loadTestOutcomes().inFormat(format).from(file)
-                println "Scenarios count: -> " + outcomes.scenarioCount
+                TestOutcomes outcomes = TestOutcomeLoader
+                        .loadTestOutcomes().inFormat(format).from(file)
+
+                println "scenarios count ${outcomes.scenarioCount}"
+
+                def database = "serenityResults"
+                def measurement = "testResult"
+                def suite = "payment"
+                def host = "http://localhost:8086"
+                def username = "admin"
+                def pass = "admin1234"
+                def executionId = UUID.randomUUID().toString()
+
+                InfluxDBClient influxDBClient = InfluxDBClientFactory
+                        .createV1(host, username, pass.toCharArray(), database, null)
 
                 WriteApiBlocking writeApi = influxDBClient.getWriteApiBlocking()
 
-                def executionId = UUID.randomUUID().toString()
                 List<Point> results = new ArrayList<>()
 
                 outcomes.getOutcomes().each {
-                    println "*********************"
-                    println "complete name: " + it.getCompleteName()
-                    println "test case name: " + it.getTestCaseName()
-                    println "result: " + it.getResult().toString()
-                    println "execution id: " + executionId
-                    println "*********************"
+                    println "********"
+                    println "complete name: ${it.getCompleteName()}"
+                    println "execution id: ${executionId}"
+                    println "duration: ${it.getDuration()}"
+                    println "********"
 
-                    Point point = Point.measurement("testResult")
-                            .time(System.currentTimeMillis(), WritePrecision.NS)
+                    Point result = Point
+                            .measurement(measurement)
+                            .time(Instant.now(), WritePrecision.MS)
+                            .addTag("testName", it.getCompleteName())
+                            .addTag("result", it.getResult().toString())
                             .addTag("executionId", executionId)
-                            .addTag("name", it.getCompleteName())
-                            .addTag("result", it.getResult().toString())
-                            .addField("duration", it.getDuration())
-                            /*.addTag("executionId", executionId)
-                            .addTag("name", it.getCompleteName())
-                            .addTag("result", it.getResult().toString())
-                            .addField("result", it.getResult().toString())
-                            .addField("duration", it.getDuration())*/
+                            .addTag("suite", suite)
+                            .addField("testDuration", it.getDuration())
 
-                    results.add(point)
+                    results.add(result)
+
                 }
 
                 writeApi.writePoints(results)
                 influxDBClient.close()
             }
         }
+
     }
 
 }
