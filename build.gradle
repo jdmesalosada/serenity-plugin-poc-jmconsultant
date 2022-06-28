@@ -35,8 +35,8 @@ dependencies {
 
 gradlePlugin {
     plugins {
-        juliana {
-            id = 'com.jmconsultant.juliana'
+        sendResultsToInfluxDB {
+            id = 'com.jmconsultant.sendResultsToInfluxDB'
             implementationClass = 'com.jmconsultant.plugins.serenityinfluxdb.SendResultsPlugin'
         }
     }
