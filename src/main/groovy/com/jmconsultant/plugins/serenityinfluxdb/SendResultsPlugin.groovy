@@ -21,6 +21,8 @@ class SendResultsPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
+        def extension = project.extensions.create("influxDbConf", SendResultsExtension)
+
         project.task('sendResults') {
             doLast {
 
@@ -40,16 +42,23 @@ class SendResultsPlugin implements Plugin<Project> {
 
                 println "scenarios count ${outcomes.scenarioCount}"
 
-                def database = "serenityResults"
-                def measurement = "testResult"
-                def suite = "payment"
-                def host = "http://localhost:8086"
-                def username = "admin"
-                def pass = "admin1234"
+                def database = extension.database
+                def measurement = extension.measurement
+                def suite = extension.suite
+                def host = extension.host
+                def username = extension.username
+                def pass = extension.pass
+
+                logger.lifecycle("database: ${database}")
+                logger.lifecycle("measurement: ${measurement}")
+                logger.lifecycle("host: ${host}")
+                logger.lifecycle("suite: ${suite}")
+
                 def executionId = UUID.randomUUID().toString()
 
                 InfluxDBClient influxDBClient = InfluxDBClientFactory
                         .createV1(host, username, pass.toCharArray(), database, null)
+
 
                 WriteApiBlocking writeApi = influxDBClient.getWriteApiBlocking()
 
@@ -75,8 +84,14 @@ class SendResultsPlugin implements Plugin<Project> {
 
                 }
 
-                writeApi.writePoints(results)
-                influxDBClient.close()
+                try{
+                    writeApi.writePoints(results)
+                }
+                catch (Exception ex){
+                    influxDBClient.close()
+                    logger.error("unable to write the results in the influx db due to: ${ex.message}")
+                }
+
             }
         }
 
